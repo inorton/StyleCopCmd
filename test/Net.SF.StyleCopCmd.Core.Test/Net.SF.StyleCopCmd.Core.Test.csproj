@@ -61,7 +61,7 @@
     </Reference>
     <Reference Include="NAnt.Core, Version=0.90.3780.0, Culture=neutral, PublicKeyToken=null">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\dll\nant-0.90\bin\NAnt.Core.dll</HintPath>
+      <HintPath>..\..\dll\NAnt.Core.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
