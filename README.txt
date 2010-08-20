@@ -21,8 +21,8 @@ The very first time you run the console tool you might see:-
 If so, you will have to invoke the command (only once) as root (sudo), 
 stylecop wants to create a registry key, thats all.
 
-If you omit the "-of" argument stylecop will crash trying to create 
-an file with no name.
+If you omit the "-of" argument stylecop may crash trying to create 
+a file with a null filename
 
 
 Ian Norton
