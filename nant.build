@@ -1,0 +1,697 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+    NOTE 1
+    make sure to include the default namespace so that visual studio
+    will turn on intellisense for this nant build file 
+    
+    NOTE 2
+    for non .NET developers: for all intents and purpose a solution in 
+    VisualStudio (VS) is the same thing as a top-level project in most other
+    languages, and VS project is the same as a package. in order to make it 
+    easier for communicate amonst .NET developers working with both VS and
+    NAnt, this NAnt build file will refer to the top-level project as a solution
+    and packages as projects.
+-->
+<project default="build"
+         basedir="."
+         xmlns="http://nant.sourceforge.net/release/latest/nant.xsd">
+
+    <!-- ******************** PRE-DEFAULT SECTION ************************** -->
+    
+    <!--
+        the pref-default section of the solution's and projects' build files
+        must, unfortunately, have hard-coded directory name and path values
+        because the solution's default.properties file, which defines
+        the variables used to represent these hard-coded values, is not loaded 
+        yet.
+    -->
+    
+    <!-- include the nant tasks -->
+    <include buildfile="nant.tasks" />
+
+    <!-- include the nant functions -->
+    <include buildfile="nant.functions" />
+    
+    <!-- include the solution's default properties -->
+    <include buildfile="conf/default.properties" />
+
+    <!-- ******************** PRE-DEFAULT SECTION ************************** -->
+
+    <!-- include the solution's local properties -->
+    <include buildfile="${sol.conf}/local.properties" />
+
+    <!-- do everything: build, test, doc, dist -->
+    <target name="all"
+            depends="init,build,test,docs" />
+
+    <!-- initialize this solution -->
+    <target name="init">
+        <mkdir dir="${sol.dist}"/>
+        <mkdir dir="${sol.build}"/>
+        <delete dir="${sol.docs}" />
+        <mkdir dir="${sol.docs}"/>
+    </target>
+
+    <!-- clean this solution  -->
+    <target name="clean">
+        <delete dir="${sol.dist}"/>
+        <delete dir="${sol.build}"/>
+        <delete dir="${sol.docs}"/>
+
+        <!-- 
+            call this solution's projects' and unit test projects' nant build
+            scripts' clean targets as well
+        -->
+        <nant target="clean">
+            <buildfiles>
+                <include name="${sol.src}/*/nant.build" />
+                <include name="${sol.test}/*/nant.build" />
+            </buildfiles>
+        </nant>
+    </target>
+
+    <!-- build this solution -->
+    <target name="build"
+            depends="init">
+
+        <!-- 
+            call this solution's projects' and unit test projects' nant
+            build scripts' build targets as well
+        -->
+        <nant target="build">
+            <buildfiles>
+                <include name="${sol.src}/*/nant.build" />
+                <include name="${sol.test}/*/nant.build" />
+            </buildfiles>
+        </nant>
+
+        <!-- 
+            copy the build directories of the projects under the src
+            tree into the build directory. 
+            
+            the path to each project's build dir is:
+            
+            /${sol.src}/${proj.name}/build/*
+            
+            we want to create 
+            
+            /${build}/${proj.name}/*
+            
+            we cannot do  blind copy of the build directory because
+            it will copy the tree structure to the root build
+            directory as well. we just want to copy everything
+            in each project's build directory to a folder with the
+            same name as the project in the root build directory.
+        -->
+        <foreach item="Folder"
+                 in="${sol.src}"
+                 property="proj.name">
+            <if test="${not string::ends-with(proj.name, '.svn')}">
+                <property name="proj.name"
+                          value="${path::get-file-name(proj.name)}"/>
+                <mkdir dir="${sol.build}/${proj.name}"/>
+                <copy todir="${sol.build}/${proj.name}"
+                      flatten="false">
+                    <fileset basedir="${sol.src}/${proj.name}/${build}">
+                        <include name="*/**"/>
+                    </fileset>
+                </copy>
+            </if>
+        </foreach>
+
+        <!-- 
+            copy the included files to the build directory
+        -->
+        <copy todir="${sol.build}"
+              flatten="false">
+            <fileset basedir="${sol.inc}">
+                <include name="*/**" />
+            </fileset>
+        </copy>
+
+    </target>
+
+    <!-- generate the solutions' documentation -->
+    <target name="docs"
+            depends="init,build">
+
+        <!-- 
+            call this solution's projects' and unit test projects' nant
+            build scripts' docs targets as well
+        -->
+        <nant target="docs">
+            <buildfiles>
+                <include name="${sol.src}/*/nant.build" />
+                <include name="${sol.test}/*/nant.build" />
+            </buildfiles>
+        </nant>
+
+        <call target="doxygen" 
+              cascade="false"/>
+
+        <call target="stylecop"
+              cascade="false" />
+
+        <call target="fxcop"
+              cascade="false" />
+
+        <call target="ndepend"
+              cascade="false" />
+        
+    </target>
+
+    <!-- run this solutions' unit tests -->
+    <target name="test"
+            depends="init,build">
+
+        <!-- 
+            call this solution's unit test projects' nant build scripts' build
+            targets as well
+        -->
+        <nant target="test">
+            <buildfiles>
+                <include name="${sol.src}/*/nant.build" />
+            </buildfiles>
+        </nant>
+
+        <!-- ncover -->
+
+        <!--
+            because ncover is not a free program check to make sure it
+            exists before calling it to merge the test reports
+        -->
+        <if test="${directory::exists(sol.tools+'/'+tools.ncover.basedir)}">
+
+            <mkdir dir="${sol.docs}/codecoverage/full/"/>
+            
+            <ncoverexplorer outputDir="${sol.docs}/codecoverage/full"
+                            program="${sol.tools}/${tools.ncover.basedir}/NCoverExplorer.Console.exe"
+                            reportType="FullCoverageReport"
+                            htmlReportName="coverage.html"
+                            showExcluded="false"
+                            projectName="${sol.name}">
+                <fileset>
+                    <include name="${sol.test}/**/coverage.xml" />
+                </fileset>
+                <exclusions>
+                    <exclusion enabled="true"
+                               type="Class"
+                               isRegex="true"
+                               pattern=".*?c__DisplayClass.*?" />
+                    <exclusion enabled="true"
+                               type="Method"
+                               isRegex="true"
+                               pattern="b__.*?" />
+                </exclusions>
+            </ncoverexplorer>
+
+            <!-- merge all of the ncover reports into a summary report -->
+            <mkdir dir="${sol.docs}/codecoverage/summary/"/>
+            <ncoverexplorer outputDir="${sol.docs}/codecoverage/summary"
+                            program="${sol.tools}/${tools.ncover.basedir}/NCoverExplorer.Console.exe"
+                            htmlReportName="coverage.html"
+                            reportType="ModuleMethodFunctionSummary"
+                            projectName="${sol.name}"
+                            showExcluded="false"
+                            >
+                <fileset>
+                    <include name="${sol.test}/**/coverage.xml" />
+                </fileset>
+                <exclusions>
+                    <exclusion enabled="true"
+                               type="Class"
+                               isRegex="true"
+                               pattern=".*?c__DisplayClass.*?" />
+                    <exclusion enabled="true"
+                               type="Method"
+                               isRegex="true"
+                               pattern="b__.*?" />
+                </exclusions>
+            </ncoverexplorer>
+
+            <!-- 
+                if this solution is being built on a TeamCity server then
+                create an archive of the codecoverage results for the 
+                TeamCity web interface to use
+            -->
+            <if test="${property::exists('teamcity')}">
+                <zip zipfile="${sol.docs}/codecoverage.zip"
+                     ziplevel="9">
+                    <fileset basedir="${sol.docs}/codecoverage">
+                        <include name="**"/>
+                    </fileset>
+                </zip>
+            </if>
+        </if>
+
+    </target>
+
+    <!-- build this solutions' binary and source distribution packages -->
+    <target name="dist"
+            depends="init">
+
+        <!-- clean out the dist dir -->
+        <delete includeemptydirs ="false">
+            <fileset basedir="${sol.dist}">
+                <include name="*"/>
+            </fileset>
+        </delete>
+        
+        <!--
+            build the binary distribution package by creating a zip file
+            of the solutions' build directory. the zip file is placed in
+            the solution's dist directory
+        -->
+        <zip zipfile="${sol.dist}/${sol.name.unix}-bin-${sol.version}.zip"
+             ziplevel="9">
+            <fileset basedir="${sol.build}">
+                <include name="**/*" />
+            </fileset>
+        </zip>
+        
+        <!--
+            create the build.num file. don't use the <echo> task as it prints
+            a newline, screwing up reading this file in later
+        -->
+        <write message="${sol.version}"
+               toFile="${sol.conf}/build.num" />
+       
+        <!--
+            if this is being built on a TeamCity server then copy all of the
+            tools and libraries from the build agent's lib and tools 
+            directories into the solution's tools and lib directories so when
+            the the source distribution package is created it will include
+            the tools and libraries required to build this solution
+        -->
+        <if test="${property::exists('teamcity')}">
+            <mkdir dir="${sol.lib}"/>
+            <copy todir="${sol.lib}">
+                <fileset basedir="${sol.lib}">
+                    <patternset refid="lib.default" />
+                    <patternset refid="lib.test" />
+                </fileset>
+            </copy>
+            <mkdir dir="${sol.tools}"/>
+            <copy todir="${sol.tools}">
+                <fileset basedir="${sol.tools}">
+                    <patternset refid="tools.default" />
+                </fileset>
+            </copy>
+        </if>
+
+        <!--
+            build the solution's source distribution package
+        -->
+        <zip zipfile="${sol.dist}/${sol.name}-src-${sol.version}.zip"
+             ziplevel="9">
+            <fileset>
+
+                <!-- start by including everything -->
+                <include name="**/" />
+
+                <!-- exclude dist dirs -->
+                <exclude name="**/${dist}/"/>
+
+                <!-- exclude docs dirs -->
+                <exclude name="**/${docs}/"/>
+
+                <!-- exclude build dirs -->
+                <exclude name="**/${build}/"/>
+
+                <!-- exclude VS per-user settings files -->
+                <exclude name="**/*.user" />
+                <exclude name="**/*.suo" />
+
+                <!-- exclude R# dirs and files -->
+                <exclude name="**/_ReSharper*/" />
+                <exclude name="**/*.resharper*" />
+
+                <!-- exclude StyleCope cache and violations -->
+                <exclude name="**/StyleCopViolations.xml/" />
+                <exclude name="**/StyleCop.cache/" />
+
+                <exclude name="**/Coverage.log/" />
+
+                <!-- exclude bin dirs -->
+                <exclude name="**/bin/"/>
+                <exclude name="**/bin/"/>
+
+                <!-- exclude obj dirs -->
+                <exclude name="**/obj/"/>
+                <exclude name="**/obj/"/>
+                
+                <!-- exclude recepits -->
+                <exclude name="**/*.receipt" />
+                
+                <!-- exclude the pay-for tools -->
+                <exclude name="${sol.tools}/${tools.ncover.basedir}*/" />
+                <exclude name="${sol.tools}/${tools.ndepend.basedir}*/" />
+
+            </fileset>
+        </zip>
+    </target>
+
+    <!-- generate api documentation with doxygen -->
+    <target name="doxygen"
+            depends="init,build"
+            if="${directory::exists(sol.tools+'/'+tools.doxygen.basedir)}">
+
+        <!-- 
+            create an escaped argument string that includes all of the source
+            directories under the solution's src directory
+        -->
+        <property name="sol.src.dirs"
+                  value="" />
+        <foreach item="Folder"
+                 property="proj.name"
+                 in="${sol.src}">
+            <if test="${not string::ends-with(proj.name, '.svn')}">
+                <property name="sol.src.dirs"
+                          value="${sol.src.dirs} &quot;${path::get-full-path(proj.name+'/'+src)}&quot; " />
+            </if>
+        </foreach>
+        
+        <!-- generate the api documentation using doxygen -->
+        <property name="doxygenpath"
+                  value="${sol.tools}/${tools.doxygen.basedir}"/>
+        <property name="doxygenpathfull"
+                  value="${path::get-full-path(doxygenpath)}"/>
+        <property name="doxygenpathfull"
+                  value="${string::replace(doxygenpathfull, '\', '/')}"/>
+        <copy file="${sol.conf}/doxyfile.template"
+              tofile="${sol.conf}/doxyfile"
+              overwrite="true">
+            <filterchain>
+                <replacestring from="%sol.title%"
+                               to="${sol.title}" />
+                <replacestring from="%docs%"
+                               to="${sol.docs}" />
+                <replacestring from="%path.strip%"
+                               to="${path::get-full-path('.')}" />
+                <replacestring from="%src%"
+                               to="${sol.src.dirs}" />
+                <replacestring from="%sol.version%"
+                               to="${sol.version}" />
+                <replacestring from="%tools.mscgen.basedir%"
+                               to="${doxygenpathfull}/mscgen/" />
+                <replacestring from="%tools.dot.basedir%"
+                               to="${doxygenpathfull}/Graphviz2.20/bin/" />
+            </filterchain>
+        </copy>
+        <exec program="${doxygenpath}/doxygen.exe"
+              commandline="${sol.conf}/doxyfile" />
+
+        <!-- rename docs/html to docs/apiDocs -->
+        <renameDir from="${sol.docs}/html"
+                   to="${sol.docs}/apidocs" />
+
+        <!-- remove the filtered Doxygen file -->
+        <delete file="${sol.conf}/doxyfile" />
+
+        <!-- 
+            if this solution is being built on a TeamCity server then
+            create an archive of the apidoc results for the 
+            TeamCity web interface to use
+        -->
+        <if test="${property::exists('teamcity')}">
+            <zip zipfile="${sol.docs}/apidocs.zip"
+                 ziplevel="9">
+                <fileset basedir="${sol.docs}/apidocs">
+                    <include name="**"/>
+                </fileset>
+            </zip>
+        </if>
+        
+    </target>
+
+    <!-- perform source analysis using stylecop -->
+    <target name="stylecop"
+            depends="init,build"
+            if="${directory::exists(sol.tools+'/'+tools.stylecopcmd.basedir)}">
+
+        <!-- run stylecop on the solution -->
+        <mkdir dir="${sol.docs}/sourceanalysis" />
+        <styleCopCmd outputXmlFile="${sol.docs}/sourceanalysis/StyleCop.xml"
+                     transformFile="${sol.conf}/StyleCopReport.xsl"
+                     ignorePatterns="AssemblyInfo\.cs,GlobalSuppressions\.cs"
+                     recursionEnabled="true"
+                     processorSymbols="RELEASE,CODE_ANALYSIS">
+            <solutionFiles>
+                <include name="${sol.name}.sln" />
+            </solutionFiles>
+        </styleCopCmd>
+
+        <!-- 
+            if this solution is being built on a TeamCity server then
+            create an archive of the source analysis results for the 
+            TeamCity web interface to use
+        -->
+        <if test="${property::exists('teamcity')}">
+            <zip zipfile="${sol.docs}/sourceanalysis.zip"
+                 ziplevel="9">
+                <fileset basedir="${sol.docs}/sourceanalysis">
+                    <include name="**"/>
+                </fileset>
+            </zip>
+        </if>
+        
+    </target>
+
+    <!--
+        perform code analysis using fxcop
+    -->
+    <target name="fxcop"
+            depends="init,build"
+            if="${directory::exists(sol.tools+'/'+tools.fxcop.basedir)}">
+
+       <mkdir dir="${sol.docs}/codeanalysis"/>
+
+        <!-- run fxcop on the projects -->
+        <foreach item="Folder"
+                 property="proj.name"
+                 in="${sol.src}">
+            <if test="${not string::ends-with(proj.name, '.svn')}">
+                <property name="proj.name"
+                          value="${path::get-file-name(proj.name)}"/>
+                <mkdir dir="${sol.docs}/codeanalysis/${proj.name}" />
+                <copy todir="${sol.docs}/codeanalysis/${proj.name}"
+                      flatten="true">
+                    <fileset>
+                        <include name="${src}/**/fxcop.html"/>
+                    </fileset>
+                </copy>
+                <echo file="${docs}/codeanalysis/index.html"
+                      append="true"
+                      message="&lt;a href=&quot;${proj.name}/fxcop.html&quot;&gt;${proj.name}&lt;/a&gt;&lt;br/&gt;"
+            />
+            </if>
+        </foreach>
+        
+        <!-- run fxcop on the unit test projects -->
+        <foreach item="Folder"
+                 property="proj.name"
+                 in="${sol.test}">
+            <if test="${not string::ends-with(proj.name, '.svn')}">
+                <property name="proj.name"
+                          value="${path::get-file-name(proj.name)}"/>
+                <mkdir dir="${sol.docs}/codeanalysis/${proj.name}" />
+                <copy todir="${sol.docs}/codeanalysis/${proj.name}"
+                      flatten="true">
+                    <fileset>
+                        <include name="${test}/**/fxcop.html"/>
+                    </fileset>
+                </copy>
+                <echo file="${sol.docs}/codeanalysis/index.html"
+                      append="true"
+                      message="&lt;a href=&quot;${proj.name}/fxcop.html&quot;&gt;${proj.name}&lt;/a&gt;&lt;br/&gt;"
+            />
+            </if>
+        </foreach>
+
+        <!-- 
+            if this solution is being built on a TeamCity server then
+            create an archive of the code analysis results for the 
+            TeamCity web interface to use
+        -->
+        <if test="${property::exists('teamcity')}">
+            <zip zipfile="${sol.docs}/codeanalysis.zip"
+                 ziplevel="9">
+                <fileset basedir="${sol.docs}/codeanalysis">
+                    <include name="**"/>
+                </fileset>
+            </zip>
+        </if>
+
+    </target>
+
+    <!-- perform code quality checks with ndepend -->
+    <target name="ndepend"
+            depends="init,build"
+            if="${directory::exists(sol.tools+'/'+tools.ndepend.basedir)}">
+        
+        <mkdir dir="${sol.docs}/codequality" />
+
+        <!-- 
+            create an escaped argument string that includes all of the 
+            directories under the build directory
+        -->
+        <property name="sol.build.dirs"
+                  value="" />
+        <foreach item="Folder"
+                 property="sol.build.dir.name"
+                 in="${sol.build}">
+            <if test="${not string::ends-with(sol.build.dir.name, '.svn')}">
+                <property name="sol.build.dirs"
+                          value="${sol.build.dirs} &quot;${path::get-full-path(sol.build.dir.name)}&quot;" />
+            </if>
+        </foreach>
+        
+        <!--
+            an ndepend formatted string of all of this solution's projects'
+            output assemblies
+        -->
+        <property name="proj.assembly.names" 
+                  value="" />
+        
+        <!--    
+            an ndepend formatted string of all of this solution's projects'
+            references' assembly names (ex. System.Directory.Services)
+        -->
+        <property name="proj.assembly.refs.names"
+                  value="" />
+        
+        <foreach item="Folder"
+                 property="proj.name"
+                 in="${sol.src}">
+            <if test="${not string::ends-with(proj.name, '.svn')}">
+                
+                <loadfile property="output.assembly.name"
+                          file="${proj.name}/assembly_name.receipt" />
+                
+                <getAssemblyReferences assemblyPath="${proj.name}/${build}/${output.assembly.name}"
+                                       property="proj.assembly.refs" />
+
+                <foreach item="String"
+                         in="${proj.assembly.refs}"
+                         delim=","
+                         property="proj.assembly.ref.name">
+                    <property name="proj.assembly.refs.names"
+                              value="${proj.assembly.refs.names}&lt;Name&gt;${proj.assembly.ref.name}&lt;/Name&gt;" />
+                </foreach>
+                
+                <property name="proj.assembly.names"
+                          value="${proj.assembly.names}&lt;Name&gt;${path::get-file-name-without-extension(output.assembly.name)}&lt;/Name&gt;" />
+            </if>
+        </foreach>
+
+        <!-- create the ndepend project file -->
+        <copy file="${sol.conf}/ndependproject.template.xml"
+              tofile="${sol.conf}/ndependproject.xml"
+              overwrite="true">
+            <filterchain>
+                <replacestring from="%sol.title%"
+                               to="${sol.title}" />
+                <replacestring from="%sol.name%"
+                               to="${sol.name}" />
+                <replacestring from="%assems%"
+                               to="${proj.assembly.names}" />
+                <replacestring from="%fassems%"
+                               to="${proj.assembly.refs.names}" />
+            </filterchain>
+        </copy>
+
+        <exec program="${sol.tools}/${tools.ndepend.basedir}/ndepend.console.exe">
+            <arg value="${path::get-full-path(sol.conf+'/ndependproject.xml')}" />
+            <arg value="/InDirs" />
+            <arg value="${environment::get-variable('windir')}\Microsoft.NET\Framework\v2.0.50727" />
+            <arg value="${environment::get-variable('ProgramFiles')}\Reference Assemblies\Microsoft\Framework\v3.0" />
+            <arg value="${environment::get-variable('ProgramFiles')}\Reference Assemblies\Microsoft\Framework\v3.5" />
+            <arg value="${sol.build.dirs}" />">
+            <arg value="/OutDir" />
+            <arg value="${path::get-full-path(sol.docs+'/codequality')}" />
+            <arg value="/HideConsole" />
+        </exec>
+
+        <!-- 
+            if this solution is being built on a TeamCity server then
+            create an archive of the code quality results for the 
+            TeamCity web interface to use
+        -->
+        <if test="${property::exists('teamcity')}">
+            <zip zipfile="${sol.docs}/codequality.zip"
+                 ziplevel="9">
+                <fileset basedir="${sol.docs}/codequality">
+                    <include name="**"/>
+                </fileset>
+            </zip>
+        </if>
+        
+    </target>
+
+    <!-- 
+        uploads the distribution packages and documentation to sourceforge 
+        
+        this target does not have any dependcies, meaning it uploads the
+        most recent distribution packages as well the more recent sets of
+        documentation. this task is meant to be called by a unique build
+        configuration, created specifically for uploading releases to
+        sourceforge. it doesn't cause a re-build, because that could possibly
+        cause a newer version of the code to be uploaded than desired
+    -->
+    <target name="release"
+            if="${property::exists('cygwin.basedir') and directory::exists(cygwin.basedir)}">
+
+        <if test="${not property::exists('release.dryrun')}">
+            <property name="release.dryrun"
+                      value="" />
+        </if>
+
+        <property name="cur.unix" value="${cygpath::get-unix-path(directory::get-current-directory())}"/>
+
+        <!-- upload the distribution packages -->
+        <property name="dist.unix"
+                  value="${cur.unix}/${dist}/"/>
+        <property name="rsync.dist"
+                  value="/usr/bin/rsync ${release.dryrun} -av --progress ${dist.unix} ${cygwin.user}@${cygwin.server.dist}:uploads/"/>
+        <echo message="${rsync.dist}"/>
+        <exec program="${cygwin.basedir}\bin\bash.exe">
+            <arg value="-c" />
+            <arg value="${rsync.dist}" />
+        </exec>
+        
+        <!-- prepare to upload the new documentation -->
+        <copy file="${conf}/release-sftp-batch.template.txt"
+              tofile="${conf}/release-sftp-batch.txt"
+              overwrite="true">
+            <filterchain>
+                <replacestring from="%VERSION%"
+                               to="${sol.version}" />
+            </filterchain>
+        </copy>
+
+        <property name="conf.unix"
+                  value="${cur.unix}/${conf}/"/>
+        <property name="sftp.docs"
+                  value="/usr/bin/sftp -b ${conf.unix}/release-sftp-batch.txt ${cygwin.user},${sol.name.unix}@${cygwin.server.docs}" />
+        <exec program="${cygwin.basedir}\bin\bash.exe">
+            <arg value="-c" />
+            <arg value="${sftp.docs}" />
+        </exec>
+
+        <delete file="${conf}/release-sftp-batch.txt" />
+        
+        <!-- upload the new documentation -->
+        <property name="docs.unix"
+                  value="${cur.unix}/${docs}/"/>
+        <property name="rsync.docs"
+                  value="/usr/bin/rsync ${release.dryrun} -av --progress --chmod=Do=rwx,Dog=rx,Fo=rwx,Fog=rx --delete --exclude=*.zip ${docs.unix} ${cygwin.user},${sol.name.unix}@${cygwin.server.docs}:htdocs/release/latest/" />
+        <echo message="${rsync.docs}"/>
+        <exec program="${cygwin.basedir}\bin\bash.exe">
+            <arg value="-c" />
+            <arg value="${rsync.docs}" />
+        </exec>
+        
+    </target>
+
+</project>

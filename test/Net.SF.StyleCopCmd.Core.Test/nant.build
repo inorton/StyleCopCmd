@@ -1,0 +1,116 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+    NOTE 1
+    make sure to include the default namespace so that visual studio
+    will turn on intellisense for this nant build file
+
+    NOTE 2
+    for non .NET developers: for all intents and purpose a solution in
+    VisualStudio (VS) is the same thing as a top-level project in most other
+    languages, and VS project is the same as a package. in order to make it
+    easier for communicate amonst .NET developers working with both VS and
+    NAnt, this NAnt build file will refer to the top-level project as a solution
+    and packages as projects.
+-->
+<project default="all"
+         basedir="."
+         xmlns="http://nant.sourceforge.net/release/latest/nant.xsd">
+
+    <!-- ******************** PRE-DEFAULT SECTION ************************** -->
+
+    <!--
+        the pref-default section of the solution's and projects' build files
+        must, unfortunately, have hard-coded directory name and path values
+        because the solution's default.properties file, which defines
+        the variables used to represent these hard-coded values, is not loaded 
+        yet.
+    -->
+
+    <!-- include nant tasks -->
+    <include buildfile="../../nant.tasks" />
+
+    <!-- include nant tasks -->
+    <include buildfile="../../nant.functions" />
+
+    <!-- include nant targets -->
+    <include buildfile="../../nant.targets" />
+
+    <!-- include solution's default properties -->
+    <include buildfile="../../conf/default.properties" />
+
+    <!-- ******************** PRE-DEFAULT SECTION ************************** -->
+
+    <!-- include solution's local properties -->
+    <include buildfile="${sol.conf}/local.properties" />
+
+    <!-- include project's default properties -->
+    <include buildfile="${proj.conf}/default.properties" />
+
+    <!-- include project's local properties -->
+    <include buildfile="${proj.conf}/local.properties" />
+
+    <!-- do it all: build, docs, test -->
+    <target name="all"
+            depends="build,test,docs">
+    </target>
+
+    <!-- clean this project -->
+    <target name="clean">
+        <delete dir="${proj.build}" />
+        <delete dir="${proj.docs}" />
+        <delete dir="Properties" />
+    </target>
+
+    <!-- initialize this project -->
+    <target name="init"
+            if="${not environment::variable-exists(proj.name+'.'+target::get-current-target())}">
+        <mkdir dir="${proj.build}" />
+        <mkdir dir="${proj.build}/coverage" />
+        <mkdir dir="Properties" />
+        <mkdir dir="${proj.docs}" />
+        <mkdir dir="${proj.docs}/fxcop" />
+
+        <setenv name="${proj.name}.${target::get-current-target()}"
+                value="true" />
+    </target>
+
+    <!-- run the unit tests -->
+    <target name="test"
+            depends="init,build"
+            if="${not environment::variable-exists(proj.name+'.'+target::get-current-target())}">
+
+        <call target="unitTest"
+              cascade="false" />
+
+        <setenv name="${proj.name}.${target::get-current-target()}"
+                value="true" />
+    </target>
+
+    <!-- build the main assembly if it is not up to date -->
+    <target name="build"
+            depends="init"
+            if="${not environment::variable-exists(proj.name+'.'+target::get-current-target())}">
+
+        <call target="compile"
+              cascade="false" />
+
+        <setenv name="${proj.name}.${target::get-current-target()}"
+                value="true" />
+
+    </target>
+
+    <!-- build this project's documentation -->
+    <target name="docs"
+            depends="init,build"
+            if="${not environment::variable-exists(proj.name+'.'+target::get-current-target())}">
+
+        <call target="fxcop"
+              cascade="false" />
+
+        <setenv name="${proj.name}.${target::get-current-target()}"
+                value="true" />
+
+    </target>
+
+</project>

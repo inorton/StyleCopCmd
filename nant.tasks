@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+    NOTE 1
+    make sure to include the default namespace so that visual studio
+    will turn on intellisense for this nant build file 
+    
+    NOTE 2
+    for non .NET developers: for all intents and purpose a solution in 
+    VisualStudio (VS) is the same thing as a top-level project in most other
+    languages, and VS project is the same as a package. in order to make it 
+    easier for communicate amonst .NET developers working with both VS and
+    NAnt, this NAnt build file will refer to the top-level project as a solution
+    and packages as projects.
+-->
+<project xmlns="http://nant.sourceforge.net/release/latest/nant.xsd">
+
+    <if test="${not environment::variable-exists('nant.tasks.loaded')}">
+
+        <!--
+            reference the required .net framework assemblies
+        -->
+        <patternset id="nant.tasks.framework">
+            <include name="${environment::get-variable('WinDir')}\Microsoft.NET\Framework\v2.0.50727\System.dll"/>
+            <include name="${environment::get-variable('ProgramFiles')}\Reference Assemblies\Microsoft\Framework\v3.5\System.Core.dll"/>
+            <include name="${environment::get-variable('WinDir')}\Microsoft.NET\Framework\v2.0.50727\System.Data.dll"/>
+            <include name="${environment::get-variable('ProgramFiles')}\Reference Assemblies\Microsoft\Framework\v3.5\System.Data.DataSetExtensions.dll" />
+            <include name="${environment::get-variable('WinDir')}\Microsoft.NET\Framework\v2.0.50727\System.Xml.dll" />
+            <include name="${environment::get-variable('ProgramFiles')}\Reference Assemblies\Microsoft\Framework\v3.5\System.Xml.Linq.dll"/>
+        </patternset>
+        
+        <!--
+            <getAssemblyReferences assemblyPath=""
+                                   property="" />
+                                   
+            returns a list of an assembly's references as a comma
+            delimited string and puts them into the given property
+        -->
+        <script language="C#">
+            <references>
+                <patternset refid="nant.tasks.framework" />
+            </references>
+            <imports>
+                <import namespace="NAnt.Core.Attributes"/>
+                <import namespace="NAnt.Core.Types"/>
+                <import namespace="NAnt.Core.Util"/>
+                <import namespace="NAnt.Core.Filters"/>
+                <import namespace="System.Xml.Linq"/>
+            </imports>
+            <code>
+                <![CDATA[
+                    [TaskName("getAssemblyReferences")]
+                    public class getAssemblyReferences : Task 
+                    {
+                      private string m_assem = string.Empty;
+                      private string m_prop = string.Empty;
+                      
+                      [TaskAttribute("assemblyPath")]
+                      public string AssemblyPath
+                      {
+                        get { return m_assem; }
+                        set { m_assem = value; }
+                      }
+                      
+                      [TaskAttribute("property")]
+                      public string Property
+                      {
+                        get { return m_prop; }
+                        set { m_prop = value; }
+                      }
+                      
+                      protected override void ExecuteTask() 
+                      {
+                        System.Reflection.Assembly a = System.Reflection.Assembly.LoadFile( this.AssemblyPath );
+                        System.Reflection.AssemblyName[] ra = a.GetReferencedAssemblies();
+                        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+                        for (int x = 0; x < ra.Length; ++x)
+                        {
+                            sb.Append(ra[x].Name);
+                            if (x < ra.Length - 1)
+                            {
+                                sb.Append(",");
+                            }
+                        }
+                        Properties[this.Property] = sb.ToString();
+                      }
+                    }
+                ]]>
+            </code>
+        </script>
+        
+        <!-- 
+            <renameDir from="" to="" /> 
+        
+            renames a directory
+        -->
+        <script language="C#">
+            <references>
+                <patternset refid="nant.tasks.framework" />
+            </references>
+            <imports>
+                <import namespace="NAnt.Core.Attributes"/>
+                <import namespace="NAnt.Core.Types"/>
+                <import namespace="NAnt.Core.Util"/>
+                <import namespace="NAnt.Core.Filters"/>
+                <import namespace="System.Xml.Linq"/>
+            </imports>
+            <code>
+                <![CDATA[
+                    [TaskName("renameDir")]
+                    public class renameDir : Task 
+                    {
+                      private string m_from = string.Empty;
+                      private string m_to = string.Empty;
+                      
+                      [TaskAttribute("from")]
+                      public string From
+                      {
+                        get { return m_from; }
+                        set { m_from = value; }
+                      }
+                      
+                      [TaskAttribute("to")]
+                      public string To
+                      {
+                        get { return m_to; }
+                        set { m_to = value; }
+                      }
+                      
+                      protected override void ExecuteTask() 
+                      {
+                        System.IO.Directory.Move( this.From, this.To );
+                      }
+                    }
+                ]]>
+            </code>
+        </script>
+        
+        <!-- 
+            <write message="" toFile="" />
+            
+            this task writes a message to a file without a newline character
+            appended to the end of the message
+        -->
+        <script language="C#">
+            <references>
+                <patternset refid="nant.tasks.framework" />
+            </references>
+            <imports>
+                <import namespace="NAnt.Core.Attributes"/>
+                <import namespace="NAnt.Core.Types"/>
+                <import namespace="NAnt.Core.Util"/>
+                <import namespace="NAnt.Core.Filters"/>
+                <import namespace="System.Xml.Linq"/>
+            </imports>
+            <code>
+                <![CDATA[
+                    [TaskName("write")]
+                    public class write : Task 
+                    {
+                      private string m_message = string.Empty;
+                      private string m_toFile = string.Empty;
+                      
+                      [TaskAttribute("message")]
+                      public string Message
+                      {
+                        get { return m_message; }
+                        set { m_message = value; }
+                      }
+                      
+                      [TaskAttribute("toFile")]
+                      public string ToFile
+                      {
+                        get { return m_toFile; }
+                        set { m_toFile = value; }
+                      }
+                      
+                      protected override void ExecuteTask() 
+                      {
+                        System.IO.File.WriteAllText( this.ToFile, this.Message );
+                      }
+                    }
+                ]]>
+            </code>
+        </script>
+        
+        <!-- 
+            <edmXtract outDir="" prefix="">
+                <fileset />
+            </edmXtract>
+            
+            this task extracts the metadata files from an edmx file
+        -->
+        <script language="C#">
+            <references>
+                <patternset refid="nant.tasks.framework" />
+            </references>
+            <imports>
+                <import namespace="NAnt.Core.Attributes"/>
+                <import namespace="NAnt.Core.Types"/>
+                <import namespace="NAnt.Core.Util"/>
+                <import namespace="NAnt.Core.Filters"/>
+                <import namespace="System.Xml.Linq"/>
+            </imports>
+            <code>
+                <![CDATA[
+                    [TaskName("edmXtract")]
+                    public class edmXtract : Task 
+                    {
+                      private FileSet m_fileset;
+                      private string m_outdir = string.Empty;
+                      private string m_prefix = string.Empty;
+                      
+                      [BuildElement("fileset")]
+                      public FileSet EdmxFileSet
+                      {
+                        get { return m_fileset; }
+                        set { m_fileset = value; }
+                      }
+                      
+                      [TaskAttribute("outDir")]
+                      public string OutDir
+                      {
+                        get { return m_outdir; }
+                        set { m_outdir = value; }
+                      }
+                      
+                      [TaskAttribute("prefix")]
+                      public string Prefix
+                      {
+                        get { return m_prefix; }
+                        set { m_prefix = value; }
+                      }
+                      
+                      protected override void ExecuteTask() 
+                      {
+                        DirectoryInfo dirInfo = this.EdmxFileSet.BaseDirectory;
+                        
+                        foreach(string filePath in this.EdmxFileSet.FileNames)
+                        {
+                            this.Extract(filePath);
+                        }
+                      }
+                      
+                      private void Extract(string edmxFilePath)
+                      {
+                        // Define the namespaces.
+                        XNamespace edmxns = "http://schemas.microsoft.com/ado/2007/06/edmx";
+                        XNamespace ssdlns = "http://schemas.microsoft.com/ado/2006/04/edm/ssdl";
+                        XNamespace csdlns = "http://schemas.microsoft.com/ado/2006/04/edm";
+                        XNamespace mslns = "urn:schemas-microsoft-com:windows:storage:mapping:CS";
+
+                        // Load the EDMX document.
+                        XDocument doc = XDocument.Load(edmxFilePath);
+                        
+                        // Get the common nodes.
+                        XElement enode = doc.Element(edmxns + "Edmx");
+                        XElement rnode = enode.Element(edmxns + "Runtime");
+                        
+                        // Get the three EDM nodes.
+                        XElement ssdlnode = rnode.Element(edmxns + "StorageModels");
+                        XElement csdlnode = rnode.Element(edmxns + "ConceptualModels");
+                        XElement mslnode = rnode.Element(edmxns + "Mappings");
+
+                        // Get the CSDL, SSDL, and MSL content nodes.
+                        XElement ssdlcon = ssdlnode.Element(ssdlns + "Schema");
+                        XElement csdlcon = csdlnode.Element(csdlns + "Schema");
+                        XElement mslcon = mslnode.Element(mslns + "Mapping");
+                        
+                        // Write the content to files.
+                        string fnwe = System.IO.Path.GetFileNameWithoutExtension(edmxFilePath);
+                        ssdlcon.Save(string.Format( 
+                            "{0}/{1}{2}.ssdl", 
+                            this.OutDir,
+                            this.Prefix,
+                            fnwe));
+                        csdlcon.Save(string.Format( 
+                            "{0}/{1}{2}.csdl", 
+                            this.OutDir,
+                            this.Prefix,
+                            fnwe));
+                        mslcon.Save(string.Format( 
+                            "{0}/{1}{2}.msl", 
+                            this.OutDir,
+                            this.Prefix,
+                            fnwe));
+                      }
+                    }
+                  ]]>
+            </code>
+        </script>
+
+        <setenv name="nant.tasks.loaded"
+                value="true" />
+
+    </if>
+</project>

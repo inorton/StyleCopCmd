@@ -1,0 +1,5 @@
+cd htdocs/release
+-rm latest
+-mkdir %VERSION%
+-ln %VERSION% latest
+exit

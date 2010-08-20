@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+    NOTE 1
+    make sure to include the default namespace so that visual studio
+    will turn on intellisense for this nant build file 
+    
+    NOTE 2
+    for non .NET developers: for all intents and purpose a solution in 
+    VisualStudio (VS) is the same thing as a top-level project in most other
+    languages, and VS project is the same as a package. in order to make it 
+    easier for communicate amonst .NET developers working with both VS and
+    NAnt, this NAnt build file will refer to the top-level project as a solution
+    and packages as projects.
+-->
+<project xmlns="http://nant.sourceforge.net/release/latest/nant.xsd">
+
+    <!-- 
+        this target runs fxcop on the current project's output assembly
+    -->
+    <target name="fxcop">
+
+        <!-- only run fxcop if fxcop exists -->
+        <if test="${directory::exists(sol.tools+'/'+tools.fxcop.basedir)}">
+
+            <property name="axsl"
+                      value="" />
+            <property name="oxsl"
+                      value="" />
+            <property name="o"
+                      value="/o:${proj.docs}/fxcop/fxcop.xml"/>
+            <if test="${not property::exists('teamcity')}">
+                <property name="axsl"
+                          value="/aXsl" />
+                <property name="oxsl"
+                          value="/oXsl:${sol.tools}/${tools.fxcop.basedir}/xml/FxCopReport.xsl" />
+                <property name="o"
+                          value="/o:${proj.docs}/fxcop/fxcop.html"/>
+            </if>
+
+            <exec program="${sol.tools}/${tools.fxcop.basedir}/fxcopcmd.exe">
+                <arg value="/f:${proj.build}/${csc.output.filename}.${csc.output.ext}" />
+                <arg value="/d:${proj.build}" />
+                <arg value="/gac" />
+                <arg value="/s" />
+                <arg value="${o}" />
+                <arg value="${axsl}" />
+                <arg value="${oxsl}" />
+                <arg value="/igc" />
+            </exec>
+
+            <if test="${not property::exists('teamcity')}">
+                
+                <!-- if there were no errors then copy this default report to the output dir -->
+                <if test="${not file::exists(proj.docs+'/fxcop/fxcop.html')}">
+                    <echo message="No Errors or Warnings"
+                          file="${proj.docs}/fxcop/fxcop.html"/>=
+                </if>
+                
+            </if>
+
+            <if test="${property::exists('teamcity')}">
+                
+                <!-- if there were no errors then copy this default report to the output dir -->
+                <if test="${not file::exists(proj.docs+'/fxcop/fxcop.xml')}">
+                    <copy todir="${proj.docs}/fxcop"
+                          flatten="true">
+                        <fileset>
+                            <include name="${sol.tools}/${tools.fxcop.basedir}/fxcop.xml"/>
+                        </fileset>
+                    </copy>
+                </if>
+
+                <!-- echo this service message to stdout in case teamcity is listening -->
+                <property name="fxcopfullpath"
+                          value="${path::get-full-path(proj.docs+'/fxcop/fxcop.xml')}"/>
+                <echo message="##teamcity[importData id='FxCop' file='${fxcopfullpath}']"/>
+            </if>
+        </if>
+
+    </target>
+
+    <!-- compiles the assembly -->
+    <target name="compile">
+
+        <!-- 
+            build this project's project references and copy the build output
+            into this project's build directory
+        -->
+        <if test="${property::exists(proj.name+'.proj.refs')}">
+            <foreach item="String"
+                     property="proj.ref.name"
+                     in="${property::get-value(proj.name+'.proj.refs')}"
+                     delim=",">
+                 <nant target="build">
+                    <buildfiles>
+                        <include name="${sol.src}/${proj.ref.name}/nant.build" />
+                    </buildfiles>
+                </nant>
+                <copy todir="${proj.build}"
+                      flatten="true">
+                    <fileset basedir="${sol.src}/${proj.ref.name}/${proj.build}">
+                        <include name="*" />
+                    </fileset>
+                </copy>
+            </foreach>
+        </if>
+
+        <!-- create the assembly information file -->
+        <asminfo output="Properties/AssemblyInfo.cs"
+                 language="CSharp">
+            <imports>
+                <import namespace="System"/>
+                <import namespace="System.Reflection"/>
+                <import namespace="System.Runtime.InteropServices"/>
+            </imports>
+            <attributes>
+                <attribute type="ComVisibleAttribute"
+                           value="false" />
+                <attribute type="CLSCompliantAttribute"
+                           value="true" />
+                <attribute type="AssemblyVersionAttribute"
+                           value="${proj.version}" />
+                <attribute type="AssemblyTitleAttribute"
+                           value="${proj.title}" />
+                <attribute type="AssemblyProductAttribute"
+                           value="${sol.title}" />
+                <attribute type="AssemblyCompanyAttribute"
+                           value="${proj.company}" />
+                <attribute type="AssemblyDescriptionAttribute"
+                           value="${proj.description}" />
+                <attribute type="AssemblyCopyrightAttribute"
+                           value="Copyright © ${proj.author} ${datetime::get-year( datetime::now() )}" />
+            </attributes>
+        </asminfo>
+
+        <!-- copy dependencies into the build directory -->
+        <copy todir="${proj.build}"
+              flatten="true">
+            <fileset basedir="${sol.lib}">
+                <patternset refid="lib.default" />
+                <patternset refid="lib.project" />
+            </fileset>
+        </copy>
+
+        <!-- create the resource files -->
+        <resgen todir="${proj.res}"
+                failonerror="false">
+            <resources prefix="${proj.name}.${proj.res}">
+                <include name="${proj.res}/*.resx"/>
+            </resources>
+        </resgen>
+
+        <!-- create the edm metadata resources -->
+        <edmXtract outDir="${path::get-full-path(proj.src)}"
+                   prefix="${proj.src}.">
+            <fileset>
+                <include name="${proj.src}/*.edmx" />
+            </fileset>
+        </edmXtract>
+
+        <!-- compile the main assembly -->
+        <csc target="${csc.target}"
+             output="${proj.build}/${csc.output.filename}.${csc.output.ext}"
+             doc="${proj.build}/${csc.output.filename}.xml"
+             warninglevel="0"
+             debug="PdbOnly"
+             define="CODE_ANALYSIS"
+             noconfig="true"
+             optimize="true">
+            <sources>
+                <patternset refid="src.generated" />
+                <include name="${proj.src}/**/*.cs" />
+                <include name="${proj.res}/**/*.cs" />
+            </sources>
+            <references>
+                <include name="${proj.build}/*.dll"/>
+                <exclude name="${proj.build}/${csc.output.filename}.${csc.output.ext}"/>
+                <patternset refid="lib.dotnet.framework" />
+            </references>
+            <resources>
+                <include name="${proj.res}/*.resources"/>
+                <include name="${proj.src}/*.ssdl"/>
+                <include name="${proj.src}/*.csdl"/>
+                <include name="${proj.src}/*.msl"/>
+            </resources>
+            <nowarn>
+                <!-- http://msdn.microsoft.com/en-us/library/2h4x8b08(VS.80).aspx -->
+                <warning number="1701" />
+                <!-- http://msdn.microsoft.com/en-us/library/wc57zasf(VS.80).aspx -->
+                <warning number="1702" />
+            </nowarn>
+        </csc>
+
+        <!-- write the name of the output assembly to a receipt -->
+        <write message="${csc.output.filename}.${csc.output.ext}"
+               toFile="${path::get-full-path('.')+'/assembly_name.receipt'}" />
+
+    </target>
+
+    <!-- runs unit tests -->
+    <target name="unitTest">
+        <!--
+            because ncover is not a free program check to make sure it
+            exists before calling it to merge the test reports
+        -->
+        <if test="${not directory::exists(sol.tools+'/'+tools.ncover.basedir)}">
+            <nunit2 haltonfailure="true"
+                    failonerror="true">
+                <formatter type="Plain" />
+                <test assemblyname="${proj.build}/${csc.output.filename}.dll" />
+            </nunit2>
+        </if>
+
+        <if test="${directory::exists(sol.tools+'/'+tools.ncover.basedir)}">
+
+            <property name="nunitpath"
+                      value="${sol.tools}/${tools.nunit.basedir}/bin/nunit-console.exe"/>
+            <property name="nunitargs"
+                      value=""/>
+            <property name="ncoverprofile"
+                      value=""/>
+            <if test="${property::exists('teamcity')}">
+                <property name="nunitpath"
+                          value="${teamcity.dotnet.nunitlauncher}"/>
+                <property name="nunitargs"
+                          value="v2.0 MSIL NUnit-2.4.8"/>
+                <property name="ncoverprofile"
+                          value="JetBrains.TeamCity.PlatformProcessRunner.msil.exe"/>
+            </if>
+
+            <ncover program="${sol.tools}/${tools.ncover.basedir}/ncover.console.exe"
+                    commandLineExe="${nunitpath}"
+                    commandLineArgs="${nunitargs} ${csc.output.filename}.dll"
+                    profiledProcessModule="${ncoverprofile}"
+                    workingDirectory="${proj.build}"
+                    assemblyList="${string::replace(csc.output.filename,'.Test', '')}"
+                    logFile="${proj.build}/coverage/coverage.log"
+                    excludeAttributes="System.CodeDom.Compiler.GeneratedCodeAttribute; System.Runtime.CompilerServices.CompilerGeneratedAttribute"
+                    fileExclusionPatterns=".*?Designer.cs"
+                    typeExclusionPatterns=".*?\{.*?\}.*?"
+                    methodExclusionPatterns="get_.*?; set_.*?"
+                    coverageFile="${proj.build}/coverage/coverage.xml"
+                    coverageHtmlDirectory="${proj.build}/coverage"
+            />
+
+        </if>
+
+    </target>
+
+    <!-- pre-compiles an asp.net app -->
+    <target name="compile.asp.net">
+        
+        <!--
+            execute the aspnet_compiler.exe tool
+            
+            http://msdn.microsoft.com/en-us/library/ms229863.aspx
+        -->
+        <exec program="${environment::get-variable('SystemRoot')}/Microsoft.NET/Framework/v2.0.50727/aspnet_compiler.exe">
+            
+            <!-- path to the source code -->
+            <arg value="-p" />
+            <arg value="${proj.src}" />
+            
+            <!-- make this asp.net app updateable -->
+            <arg value="-u" />
+            
+            <!-- the output directory -->
+            <arg value="-d" />
+            <arg value="${proj.build}" />
+            
+            <!-- the virtual path to the application -->
+            <arg value="-v" />
+            <arg value="${asp.net.vpath}" />
+            
+            <!-- use fixed names -->
+            <arg value="-fixednames" />
+            
+            <!-- force overwrite of the output directory if already exists -->
+            <arg value="-f" />
+        </exec>
+    </target>
+
+    <!-- merge multiple assemblies for an asp.net app -->
+    <target name="merge.asp.net">
+
+        <!--
+            execute the aspnet_merge.exe tool
+            
+            http://msdn.microsoft.com/en-us/library/bb397866.aspx
+        -->
+        <exec program="${environment::get-variable('SystemRoot')}/Microsoft.NET/Framework/v2.0.50727/aspnet_compiler.exe">
+
+            <!-- the asp.net app to merge -->
+            <arg value="${proj.build}" />
+
+            <!-- the name of the output assembly -->
+            <arg value="-o" />
+            <arg value="${csc.output.filename}.dll" />
+
+            <!-- merge the xml documentation as well -->
+            <arg value="-xmldocs" />
+            
+        </exec>
+    </target>
+    
+</project>

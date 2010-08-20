@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+    NOTE 1
+    make sure to include the default namespace so that visual studio
+    will turn on intellisense for this nant build file 
+    
+    NOTE 2
+    for non .NET developers: for all intents and purpose a solution in 
+    VisualStudio (VS) is the same thing as a top-level project in most other
+    languages, and VS project is the same as a package. in order to make it 
+    easier for communicate amonst .NET developers working with both VS and
+    NAnt, this NAnt build file will refer to the top-level project as a solution
+    and packages as projects.
+-->
+<project xmlns="http://nant.sourceforge.net/release/latest/nant.xsd">
+
+    <!-- only load the custom functions if the have not already been loaded -->
+    <if test="${not environment::variable-exists('nant.functions.loaded')}">
+
+        <!--
+            custom::get-sol-relative-path(string dirName)
+            
+            this function returns the path to the given directory name relative
+            to the root of the solution. if the function is called for the
+            conf folder while a project is being built then the path returned
+            will be "../../conf", however if the function is called on the conf
+            folder while the solution is being built the path will be "conf"
+        -->
+        <script language="C#" prefix="custom" >
+            <code>
+                <![CDATA[
+                    private bool IsSolRooted()
+                    {
+                        string cd = this.Project.BaseDirectory;
+                        System.IO.DirectoryInfo di = new DirectoryInfo(cd);
+                        System.IO.FileInfo[] files = di.GetFiles("*.sln");
+                        return files != null && files.Length != 0;
+                    }
+                    
+                    [Function("get-sol-relative-path")]
+                    public string GetSolRelativePath(string dirName)
+                    {
+                        return IsSolRooted() ? dirName : "../../" + dirName;
+                    }
+                ]]>
+            </code>
+        </script>
+        
+        <!-- 
+            defining this environment variable will keep the custom functions
+            from being loaded more than once, speeding up the build process
+        -->
+        <setenv name="nant.functions.loaded"
+                value="true" />
+        
+    </if>
+    
+</project>
