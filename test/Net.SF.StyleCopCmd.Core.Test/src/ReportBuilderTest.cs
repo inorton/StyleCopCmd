@@ -265,7 +265,8 @@ namespace Net.SF.StyleCopCmd.Core.Test
         {
             var scr = new StyleCopReport();
             var rb = scr.ReportBuilder();
-            var sf = GetTestSolutionPath() + @"\StyleCopTestProject.sln";
+            var sf = System.String.Join( Path.DirectorySeparatorChar.ToString(),
+			                            new string[] { GetTestSolutionPath() , "StyleCopTestProject.sln" } );
             
             var t = rb.GetType();
             var mi = t.GetMethod(
@@ -296,8 +297,8 @@ namespace Net.SF.StyleCopCmd.Core.Test
         {
             var scr = new StyleCopReport();
             var rb = scr.ReportBuilder();
-            var sf = GetTestSolutionPath() + 
-                @"\StyleCopTestProject\StyleCopTestProject.csproj";
+            var sf = System.String.Join( Path.DirectorySeparatorChar.ToString(), 
+			    new string[]{ GetTestSolutionPath(), "StyleCopTestProject","StyleCopTestProject.csproj" });
 
             var t = rb.GetType();
             var mi = t.GetMethod(
@@ -367,9 +368,11 @@ namespace Net.SF.StyleCopCmd.Core.Test
                 d = d.Parent;
             }
 
-            var r = d.FullName +
-                    @"\test\Net.SF.StyleCopCmd.Core.Test" +
-                    @"\data\StyleCopTestProject";
+            var r = System.String.Join( Path.DirectorySeparatorChar.ToString(),
+			    new string[] { 
+				    d.FullName ,
+                    "test","Net.SF.StyleCopCmd.Core.Test",
+                    "data","StyleCopTestProject" } );
 
             return r;
         }

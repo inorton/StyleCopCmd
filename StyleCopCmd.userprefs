@@ -1,28 +1,65 @@
 ﻿<Properties>
   <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" ctype="Workspace" />
-  <MonoDevelop.Ide.Workbench ActiveDocument="src/Net.SF.StyleCopCmd.Console/src/Program.cs" ctype="Workbench">
+  <MonoDevelop.Ide.Workbench ActiveDocument="test/Net.SF.StyleCopCmd.Core.Test/src/ReportBuilderTest.cs" ctype="Workbench">
     <Files>
       <File FileName="src/Net.SF.StyleCopCmd.Console/src/Program.cs" Line="49" Column="32" />
+      <File FileName="src/Net.SF.StyleCopCmd.Core/src/ReportBuilder.cs" Line="723" Column="1" />
+      <File FileName="test/Net.SF.StyleCopCmd.Core.Test/src/ReportBuilderTest.cs" Line="300" Column="48" />
     </Files>
     <Pads>
       <Pad Id="ProjectPad">
         <State expanded="True">
+          <Node name="inc" selected="True" />
           <Node name="src" expanded="True">
             <Node name="Net.SF.StyleCopCmd.Console" expanded="True">
               <Node name="src" expanded="True" />
             </Node>
             <Node name="Net.SF.StyleCopCmd.Core" expanded="True">
-              <Node name="References" expanded="True" />
-              <Node name="Properties" expanded="True" selected="True" />
+              <Node name="src" expanded="True" />
             </Node>
           </Node>
-          <Node name="test" expanded="True" />
+          <Node name="test" expanded="True">
+            <Node name="Net.SF.StyleCopCmd.Core.Test" expanded="True">
+              <Node name="References" expanded="True" />
+              <Node name="src" expanded="True" />
+            </Node>
+          </Node>
+        </State>
+      </Pad>
+      <Pad Id="ClassPad">
+        <State expanded="True" selected="True" />
+      </Pad>
+      <Pad Id="MonoDevelop.Debugger.WatchPad">
+        <State />
+      </Pad>
+      <Pad Id="MonoDevelop.NUnit.TestPad">
+        <State expanded="True">
+          <Node name="test" expanded="True">
+            <Node name="Net.SF.StyleCopCmd.Core.Test" expanded="True">
+              <Node name="Net" expanded="True">
+                <Node name="SF" expanded="True">
+                  <Node name="StyleCopCmd" expanded="True">
+                    <Node name="Core" expanded="True">
+                      <Node name="Test" expanded="True">
+                        <Node name="ReportBuilderTest" expanded="True">
+                          <Node name="AddProjectFileTest" selected="True" />
+                        </Node>
+                      </Node>
+                    </Node>
+                  </Node>
+                </Node>
+              </Node>
+            </Node>
+          </Node>
         </State>
       </Pad>
     </Pads>
   </MonoDevelop.Ide.Workbench>
   <MonoDevelop.Ide.DebuggingService.Breakpoints>
-    <BreakpointStore />
+    <BreakpointStore>
+      <Breakpoint file="/home/inb/Projects/git/stylecopcmd-mono/src/Net.SF.StyleCopCmd.Core/src/ReportBuilder.cs" line="723" />
+      <Breakpoint file="/home/inb/Projects/git/stylecopcmd-mono/test/Net.SF.StyleCopCmd.Core.Test/src/ReportBuilderTest.cs" line="300" />
+    </BreakpointStore>
   </MonoDevelop.Ide.DebuggingService.Breakpoints>
   <MonoDevelop.Ide.DebuggingService.PinnedWatches ctype="PinnedWatchStore" />
 </Properties>

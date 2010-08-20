@@ -677,11 +677,13 @@ namespace Net.SF.StyleCopCmd.Core
                 RegexOptions.Multiline | RegexOptions.IgnoreCase);
             foreach (Match sm in smatches)
             {
+				var mstring = sm.Groups["ppath"].Value.Replace(@"\", Path.DirectorySeparatorChar.ToString() );
+				
                 var ppath =
                     Path.GetFullPath(
                         Path.GetDirectoryName(
                             Path.GetFullPath(solutionFilePath)))
-                    + "\\" + sm.Groups["ppath"].Value;
+                    + Path.DirectorySeparatorChar.ToString() + mstring;
                 this.AddProjectFile(
                     ppath,
                     sr);
@@ -742,7 +744,7 @@ namespace Net.SF.StyleCopCmd.Core
             {
                 var fpath =
                     Path.GetFullPath(Path.GetDirectoryName(projectFilePath))
-                    + "\\" + n.Attribute(XName.Get("Include")).Value;
+                    +  Path.DirectorySeparatorChar.ToString() + n.Attribute(XName.Get("Include")).Value;
 
                 this.AddFile(
                     fpath,
